@@ -1,0 +1,76 @@
+services:
+  details:
+    build: ./details
+    ports:
+      # details listens on 9080 inside the container
+      - "8081:9080"
+    environment:
+      SERVICE_VERSION: v1
+    restart: unless-stopped
+
+  mongodb:
+    build: ./mongodb
+    ports:
+      - "27017:27017"
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+
+  mysql:
+    build: ./mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: test
+    ports:
+      - "3306:3306"
+    restart: unless-stopped
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+  ratings:
+    build: ./ratings
+    ports:
+      # ratings uses 9080 inside the container
+      - "8082:9080"
+    environment:
+      SERVICE_VERSION: v1
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+
+  reviews:
+    build: ./reviews
+    ports:
+      # reviews (Open Liberty) typically serves on 9080 inside the container
+      - "9081:9080"
+    environment:
+      SERVICE_VERSION: v1
+      ENABLE_RATINGS: 'true'
+      STAR_COLOR: black
+    restart: unless-stopped
+    depends_on:
+      - ratings
+      - mysql
+
+  productpage:
+    build: ./productpage
+    ports:
+      - "9080:9080"
+    environment:
+      # productpage reads these to construct internal backend URLs. Set to service names and internal ports.
+      DETAILS_HOSTNAME: details
+      DETAILS_SERVICE_PORT: "9080"
+      RATINGS_HOSTNAME: ratings
+      RATINGS_SERVICE_PORT: "9080"
+      REVIEWS_HOSTNAME: reviews
+      REVIEWS_SERVICE_PORT: "9080"
+      FLOOD_FACTOR: "0"
+    restart: unless-stopped
+    depends_on:
+      - details
+      - ratings
+      - reviews
+
+volumes:
+  mongo-data:
+  mysql-data:
